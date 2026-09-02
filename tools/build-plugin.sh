@@ -30,7 +30,8 @@ fi
 
 MACHDEP="-DESPRESSO -mcpu=750 -meabi -mhard-float"
 INC="-I$ROOT/common -I$WUPS/include -I$WUT/include"
-DEFS="-D__WIIU__ -D__WUT__ -D__WUPS__"
+VERSION="$(cat "$ROOT/VERSION" 2>/dev/null || echo dev)"
+DEFS="-D__WIIU__ -D__WUT__ -D__WUPS__ -DWSTR_APP_VERSION=\"$VERSION\""
 WARN="-Wall -Wextra"
 
 OUT="$ROOT/build"

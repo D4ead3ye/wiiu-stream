@@ -113,6 +113,10 @@ int main(void)
     uint32_t audio_start_ms = 0, audio_frames_sent = 0;
     int audio_running = 0;
 
+    /* Unbuffered: this tool is usually killed rather than exited, and a
+     * buffered stdout loses exactly the lines that say what happened. */
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         fprintf(stderr, "WSAStartup failed\n");
         return 1;

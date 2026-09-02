@@ -12,3 +12,15 @@ thirdparty/WiiUPluginSystem/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Release staging and archives - built by tools/make-release.sh, not versioned
+release/
+
+# Per-user state, written by the app on exit
+pc/settings.json
+
+# Generated from VERSION at package time; the app falls back to "dev" without it
+pc/_version.py
+
+# Recordings and saved logs
+captures/

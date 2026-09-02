@@ -63,7 +63,10 @@ extern "C" {
 
 WUPS_PLUGIN_NAME("Wii U Stream");
 WUPS_PLUGIN_DESCRIPTION("Streams the console's video to a PC over Wi-Fi, for capture-card-free recording and Discord.");
-WUPS_PLUGIN_VERSION("v1.0.0");
+#ifndef WSTR_APP_VERSION
+#define WSTR_APP_VERSION "dev"
+#endif
+WUPS_PLUGIN_VERSION("v" WSTR_APP_VERSION);
 WUPS_PLUGIN_AUTHOR("wiiu-stream");
 WUPS_PLUGIN_LICENSE("MIT");
 
@@ -1499,7 +1502,7 @@ static void on_scanout(const GX2ColorBuffer *cb, GX2ScanTarget target)
      * idea which binary it is talking to - and every number in a saved log is
      * meaningless without that. Four lines a minute is a cheap guarantee. */
     if (t - s_build_log_ms >= 15000) {
-        plog("build " __DATE__ " " __TIME__);
+        plog("build " WSTR_APP_VERSION " (" __DATE__ " " __TIME__ ")");
         s_build_log_ms = t;
     }
 
@@ -1527,7 +1530,7 @@ static void on_scanout(const GX2ColorBuffer *cb, GX2ScanTarget target)
              (unsigned)cb->surface.format, (unsigned)cb->surface.tileMode,
              (unsigned)cb->surface.aa, (unsigned)cb->surface.pitch,
              (unsigned)cb->surface.use);
-        plog("build " __DATE__ " " __TIME__);
+        plog("build " WSTR_APP_VERSION " (" __DATE__ " " __TIME__ ")");
         plog("stage=%u - capture path is gated here", (unsigned)s_net.stage);
         s_described = true;
     }
