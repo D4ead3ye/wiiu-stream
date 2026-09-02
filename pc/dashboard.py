@@ -29,6 +29,11 @@ import audio_out
 import receiver
 
 try:
+    from _version import __version__
+except Exception:          # running from a source tree that was never packaged
+    __version__ = "dev"
+
+try:
     import pyvirtualcam
 except Exception:      # optional - the window-share path needs nothing extra
     pyvirtualcam = None
@@ -566,6 +571,7 @@ class Dashboard:
         return "\n".join([
             "# wiiu-stream log",
             f"# saved      {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# app        {__version__}",
             f"# plugin     {st.console_build or 'UNKNOWN - console sent no build stamp'}",
             f"# auto       quality {'on' if self.settings.auto_quality else 'off'}"
             f", console using q{st.console_quality or '?'}",
@@ -1059,7 +1065,7 @@ class Dashboard:
 
     def run(self):
         params = hello_imgui.RunnerParams()
-        params.app_window_params.window_title = "Wii U Stream"
+        params.app_window_params.window_title = f"Wii U Stream {__version__}"
         params.app_window_params.window_geometry.size = (1180, 700)
         params.imgui_window_params.default_imgui_window_type = (
             hello_imgui.DefaultImGuiWindowType.provide_full_screen_window
