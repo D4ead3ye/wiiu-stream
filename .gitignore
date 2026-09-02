@@ -1,0 +1,14 @@
+# Build output and scratch
+build/
+tmp/
+
+# Capture scratch from PC-side testing
+out.yuv
+*.jpg
+
+# Cloned by build.sh when the SDK is missing; not ours to version
+thirdparty/WiiUPluginSystem/
+
+# Python bytecode
+__pycache__/
+*.pyc
