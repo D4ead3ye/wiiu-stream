@@ -1,4 +1,5 @@
 # wiiu-stream
+<img width="1024" height="339" alt="image" src="https://github.com/user-attachments/assets/509a77b1-7182-4d02-a378-9a7d702a8c65" />
 
 Streams the Wii U's picture and sound to a PC over Wi-Fi, with no capture card,
 and gives Discord something to share.
