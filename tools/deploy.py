@@ -8,6 +8,7 @@ CWD rather than hard-coding one. The card never leaves the console.
 """
 
 import ftplib
+import os
 import socket
 import sys
 from pathlib import Path
@@ -26,7 +27,9 @@ SD_ROOTS = [
 ]
 PLUGIN_DIR = "/wiiu/environments/aroma/plugins"
 
-DEFAULT_HOSTS = ["192.168.1.110"]
+# Set WIIU_HOST to your console's address, or pass it on the command line.
+# Anything listed here is only a starting guess for the FTP probe below.
+DEFAULT_HOSTS = [h for h in (os.environ.get("WIIU_HOST"),) if h]
 
 
 def find_console(hosts):

@@ -25,8 +25,23 @@ bash tools/build-plugin.sh
 
 echo
 echo "==> fake console (PC-side test rig)"
-MINGW="/c/Users/eduar/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin"
-[ -d "$MINGW" ] && export PATH="$PATH:$MINGW"
+# The fake console is a native Windows binary, so it needs a mingw gcc rather
+# than the devkitPPC one. Use whatever is already on PATH; otherwise set MINGW
+# to your mingw64/bin (a WinLibs install from winget lands under
+# %LOCALAPPDATA%/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.*/mingw64/bin).
+if ! command -v gcc >/dev/null 2>&1; then
+    if [ -n "${MINGW:-}" ] && [ -d "$MINGW" ]; then
+        export PATH="$PATH:$MINGW"
+    else
+        found=$(ls -d /c/Users/*/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.*/mingw64/bin 2>/dev/null | head -1)
+        [ -n "$found" ] && export PATH="$PATH:$found"
+    fi
+fi
+if ! command -v gcc >/dev/null 2>&1; then
+    echo "    no native gcc found - skipping the fake console."
+    echo "    set MINGW=/path/to/mingw64/bin to build it."
+    exit 0
+fi
 gcc -O2 -Wall -Wextra -o build/fake_console.exe \
     tools/fake_console.c common/wstr_jpeg.c common/wstr_net.c \
     -lws2_32 -lwinmm

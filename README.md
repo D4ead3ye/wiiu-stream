@@ -5,9 +5,9 @@ Discord something to point at.
 
 Two halves:
 
-- **`wiiustream.wps`** â€” an Aroma plugin. It loads into every title, hooks GX2,
+- **`wiiustream.wps`** — an Aroma plugin. It loads into every title, hooks GX2,
   and sends the framebuffer out as a JPEG stream over UDP.
-- **`pc/dashboard.py`** â€” a Dear ImGui window that shows the stream, records it,
+- **`pc/dashboard.py`** — a Dear ImGui window that shows the stream, records it,
   and can expose it as a webcam.
 
 ---
@@ -26,7 +26,7 @@ There are two, and the app supports both:
 | **Screen share** | This app's window | Nothing extra |
 | **Virtual camera** | A webcam called "OBS Virtual Camera" | OBS Studio installed, plus `pip install pyvirtualcam` |
 
-Screen share is the default and needs no setup: Go Live â†’ *Application Window* â†’
+Screen share is the default and needs no setup: Go Live → *Application Window* →
 pick **Wii U Stream**. Note that Discord's free tier caps screen share at 720p30,
 which is well above what this link delivers anyway.
 
@@ -46,7 +46,7 @@ Requires [Aroma](https://wiiu.hacks.guide/). Copy the plugin to your SD card:
 sd:/wiiu/environments/aroma/plugins/wiiustream.wps
 ```
 
-Reboot into Aroma. That is the entire console-side setup â€” **there is nothing to
+Reboot into Aroma. That is the entire console-side setup — **there is nothing to
 configure**, no IP to type in, no menu to open. The plugin binds a UDP port and
 sits idle until the PC app says hello, and it costs nothing while idle.
 
@@ -67,14 +67,14 @@ networks do), type the console's IP into the **Console** box in the sidebar.
 
 ## Using it
 
-The sidebar controls the console live â€” moving a slider changes what the Wii U
+The sidebar controls the console live — moving a slider changes what the Wii U
 encodes within about a second, with no restart:
 
-- **Resolution** â€” 320Ã—180 up to 1280Ã—720. 640Ã—360 is the default and the sweet
+- **Resolution** — 320×180 up to 1280×720. 640×360 is the default and the sweet
   spot; see [Performance](#performance).
-- **Frame rate** â€” 5 to 30 fps. This is the *capture* rate, not the game's; the
+- **Frame rate** — 5 to 30 fps. This is the *capture* rate, not the game's; the
   game keeps running at its own speed.
-- **Quality** â€” JPEG quality. Mostly trades bitrate, not CPU.
+- **Quality** — JPEG quality. Mostly trades bitrate, not CPU.
 - **Source** - the TV output or the GamePad screen. One at a time.
 - **Auto scaling** - lets the console lower quality, and then resolution, to
   hold the frame rate. Off means it keeps the quality asked for and the frame
@@ -82,7 +82,7 @@ encodes within about a second, with no restart:
 
 The stats bar underneath the video shows what you are actually getting versus
 what you asked for, including the console's own encode time per frame. If `fps`
-sits well below the slider, the console is the bottleneck â€” drop the resolution.
+sits well below the slider, the console is the bottleneck — drop the resolution.
 
 **Save log** writes the console's trace to `captures/`, with the stage, heap,
 sync mode and stream settings recorded at the top — a log that does not say what
@@ -341,7 +341,7 @@ python pc/dashboard.py
 
 Useful twice over: it turns a reboot-the-console edit loop into a one-second
 one, and it lets you get Discord pointed at the right window before the Wii U is
-involved â€” so if the real stream misbehaves later, you already know the PC half
+involved — so if the real stream misbehaves later, you already know the PC half
 is fine.
 
 `tools/test_jpeg.c` is a standalone check of the encoder: it runs a test pattern
@@ -368,10 +368,10 @@ UDP, big-endian, 24-byte header + payload, capped at a 1400-byte MTU.
 
 The PC broadcasts `HELLO` about once a second carrying the resolution, frame
 rate, quality and source it wants. The console streams to whoever sent the most
-recent one and stops when they stop arriving â€” so the HELLO is the pairing, the
+recent one and stops when they stop arriving — so the HELLO is the pairing, the
 settings channel and the keepalive all at once, and closing the PC app leaves
 the console idle rather than encoding into the void.
 
 Every video frame is a complete JPEG. There is no inter-frame prediction, so a
-lost chunk costs exactly one frame and the next is whole again â€” the right trade
+lost chunk costs exactly one frame and the next is whole again — the right trade
 on a LAN, where bandwidth is the resource with headroom and latency is not.
