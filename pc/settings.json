@@ -1,0 +1,14 @@
+{
+  "res_index": 2,
+  "fps": 20,
+  "quality": 70,
+  "source": 0,
+  "stage": 5,
+  "sync_mode": 0,
+  "tile_mode": 0,
+  "want_audio": 0,
+  "auto_quality": 0,
+  "video_off": 0,
+  "audio_source": 0,
+  "manual_ip": ""
+}

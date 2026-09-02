@@ -1,0 +1,9 @@
+# The dashboard and receiver. Python 3.10+.
+imgui-bundle>=1.92.0
+opencv-python>=4.9.0
+numpy>=1.26
+
+# Optional: only needed for the virtual-camera output, which also requires
+# OBS Studio to be installed for its virtual camera driver. The screen-share
+# route into Discord needs neither.
+# pyvirtualcam>=0.11.0
