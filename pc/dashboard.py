@@ -837,7 +837,7 @@ class Dashboard:
         imgui.text_colored(TEXT_MUTE, "found by broadcast - only fill this")
         imgui.text_colored(TEXT_MUTE, "in if your network blocks it")
         imgui.set_next_item_width(-1)
-        ch, v = imgui.input_text_with_hint("##ip", "192.168.1.110", self.manual_ip)
+        ch, v = imgui.input_text_with_hint("##ip", "192.168.1.x", self.manual_ip)
         if ch:
             self.manual_ip = v
             self.rx.manual_ip = v

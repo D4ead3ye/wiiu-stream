@@ -125,6 +125,18 @@ static volatile bool s_want_netstart = false;
 static volatile bool s_want_status   = false;
 static volatile bool s_want_alloc  = false;
 static volatile bool s_want_free   = false;
+
+/* Hooking and unhooking audio is worker work, for the same reason sends are.
+ *
+ * audio_start() calls OSDynLoad_Acquire, which takes the RPL loader lock and
+ * may pull in a module; audio_stop() calls OSJoinThread and waits. Both were
+ * on the render thread, and audio_start() was retried on *every frame* while
+ * AX was not yet initialised - which is precisely the window during a title
+ * load, contending for the loader lock with the game's own loading. Anything
+ * blocking on the render thread freezes the console rather than erroring. */
+static volatile bool s_want_audio_start = false;
+static volatile bool s_want_audio_stop  = false;
+static uint32_t s_audio_try_ms = 0;
 static volatile bool s_slots_ready = false;
 static uint32_t s_req_w = 0, s_req_h = 0;
 static GX2SurfaceFormat s_req_fmt = GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8;
@@ -1004,6 +1016,13 @@ static int helper_main(int, const char **)
                                  s_slice.row0, s_slice.row1);
         OSSignalEvent(&s_helper_done);
     }
+
+    /* Release a worker that is waiting on a slice this thread will now never
+     * produce. Without this, a stop that lands between the worker signalling
+     * "go" and this thread waking leaves the worker blocked forever - and the
+     * join in the shutdown path then never returns, which is a frozen console
+     * on exit rather than an error. */
+    OSSignalEvent(&s_helper_done);
     return 0;
 }
 
@@ -1028,17 +1047,6 @@ static void helper_start()
     OSSetThreadName(&s_helper, "wiiu-stream downscale");
     OSResumeThread(&s_helper);
     s_helper_ready = true;
-}
-
-static void helper_stop()
-{
-    if (!s_helper_ready) return;
-    s_helper_running = false;
-    OSSignalEvent(&s_helper_go);
-    OSJoinThread(&s_helper, nullptr);
-    free(s_helper_stack);
-    s_helper_stack = nullptr;
-    s_helper_ready = false;
 }
 
 /* ---------------------------------------------------------- worker thread */
@@ -1112,12 +1120,28 @@ static int encode_and_send(Slot &slot)
             s_slice.y_stride = y_stride; s_slice.c_stride = c_stride;
             s_slice.row0 = 0; s_slice.row1 = split;
 
+            /* A slice that timed out below may signal after we gave up on
+             * it, and an auto-reset event latches that signal - which would
+             * then satisfy the *next* frame's wait instantly and hand back a
+             * half-stale image. Clear it before dispatching. */
+            OSResetEvent(&s_helper_done);
             OSSignalEvent(&s_helper_go);
             wstr_rgba_to_yuv420_rows((const uint8_t *)slot.surface.image,
                                      src_w, src_h, (int)slot.surface.pitch * 4,
                                      s_y, s_cb, s_cr, out_w, out_h,
                                      y_stride, c_stride, split, out_h);
-            OSWaitEvent(&s_helper_done);
+            /* Bounded. The helper signals on every exit path, so this should
+             * never expire - but a missed wake here would hang the shutdown
+             * join, and no frame is worth that. Doing the slice again single
+             * threaded is a far better failure than a locked console. */
+            if (!OSWaitEventWithTimeout(&s_helper_done,
+                                        OSMillisecondsToTicks(500))) {
+                wstr_rgba_to_yuv420_rows((const uint8_t *)slot.surface.image,
+                                         src_w, src_h,
+                                         (int)slot.surface.pitch * 4,
+                                         s_y, s_cb, s_cr, out_w, out_h,
+                                         y_stride, c_stride, 0, split);
+            }
         } else {
             wstr_rgba_to_yuv420((const uint8_t *)slot.surface.image,
                                 src_w, src_h, (int)slot.surface.pitch * 4,
@@ -1281,6 +1305,24 @@ static int worker_main(int, const char **)
                 s_net_ready = net_start();
             }
         }
+        if (s_want_audio_stop) {
+            s_want_audio_stop = false;
+            audio_stop();
+        }
+        if (s_want_audio_start) {
+            s_want_audio_start = false;
+            const uint32_t want_dev = (s_net.audio_source == WSTR_AUDIO_SRC_DRC)
+                                          ? AX_DEVICE_TYPE_DRC : AX_DEVICE_TYPE_TV;
+            if (s_audio_hooked && s_hooked_device != want_dev) {
+                plog("audio: switching to the %s mixer",
+                     want_dev == AX_DEVICE_TYPE_DRC ? "gamepad" : "tv");
+                audio_stop();
+                s_audio_described = false;
+                s_ax_p0 = 0;
+            }
+            audio_start();
+        }
+
         logq_drain();
         if (s_want_status) {
             s_want_status = false;
@@ -1503,18 +1545,18 @@ static void on_scanout(const GX2ColorBuffer *cb, GX2ScanTarget target)
     }
 
     if (s_net.want_audio) {
-        /* Changing the mixer means unhooking one device and hooking another;
-         * there is no way to move a callback between them. */
+        /* Ask the worker to hook, or to re-hook on the other mixer. Rate
+         * limited: until the title initialises AX this cannot succeed, and
+         * retrying the module lookup every frame is pure loader-lock traffic
+         * during exactly the load it would interfere with. */
         const uint32_t want_dev = (s_net.audio_source == WSTR_AUDIO_SRC_DRC)
                                       ? AX_DEVICE_TYPE_DRC : AX_DEVICE_TYPE_TV;
-        if (s_audio_hooked && s_hooked_device != want_dev) {
-            plog("audio: switching to the %s mixer",
-                 want_dev == AX_DEVICE_TYPE_DRC ? "gamepad" : "tv");
-            audio_stop();
-            s_audio_described = false;
-            s_ax_p0 = 0;
+        if ((!s_audio_hooked || s_hooked_device != want_dev) &&
+            !s_want_audio_start && t - s_audio_try_ms >= 1000) {
+            s_audio_try_ms = t;
+            s_want_audio_start = true;
+            OSSignalEvent(&s_wake);
         }
-        audio_start();
         s_audio_on = s_audio_hooked;
         if (s_audio_hooked && !s_audio_described && s_ax_samples) {
             plog("audio: %u Hz, ch=%u samples=%u devices=%u chOut=%u",
@@ -1767,6 +1809,9 @@ static void reset_session_state()
     s_timing_log_ms   = 0;
     s_build_log_ms    = 0;
     s_net_retry_ms    = 0;
+    s_audio_try_ms    = 0;
+    s_want_audio_start = false;
+    s_want_audio_stop = false;
     s_sec_start_ms    = now_ms();
     s_frames_this_sec = 0;
     s_fps_actual      = 0;
@@ -1835,22 +1880,63 @@ ON_APPLICATION_START()
 
 ON_APPLICATION_ENDS()
 {
-    audio_stop();
-    helper_stop();
+    /* Order matters here, and getting it wrong freezes the console on exit
+     * rather than erroring - which is what pressing HOME while streaming used
+     * to do. Three rules:
+     *
+     *   - unhook the title's audio first, so it stops calling into code that
+     *     is being dismantled;
+     *   - wake everything before joining anything, including the helper's
+     *     "done" event, in case the worker is waiting on a slice that will
+     *     never arrive;
+     *   - close the socket before any join, because a thread blocked in a
+     *     send would otherwise hang the join forever.
+     *
+     * Then join in reverse dependency order: the worker waits on the helper,
+     * so the worker has to go first.
+     */
+    if (s_audio_hooked) {
+        if (ax_set_mixcb) ax_set_mixcb(s_hooked_device, s_prev_mix_cb);
+        s_prev_mix_cb = nullptr;
+        s_audio_hooked = false;
+        s_audio_on = false;
+    }
 
-    if (s_running) {
-        s_running = false;
-        OSSignalEvent(&s_wake);
-        OSJoinThread(&s_worker, nullptr);
+    s_running = false;
+    s_audio_running = false;
+    if (s_helper_ready) {
+        s_helper_running = false;
+        OSSignalEvent(&s_helper_go);
+        OSSignalEvent(&s_helper_done);
     }
-    if (s_worker_stack) {
-        free(s_worker_stack);
-        s_worker_stack = nullptr;
-    }
+    OSSignalEvent(&s_wake);
+
     if (s_net_ready) {
         wstr_net_close(&s_net);
         s_net_ready = false;
     }
+
+    if (s_worker_stack) {
+        OSJoinThread(&s_worker, nullptr);
+        free(s_worker_stack);
+        s_worker_stack = nullptr;
+    }
+    if (s_helper_ready) {
+        OSJoinThread(&s_helper, nullptr);
+        free(s_helper_stack);
+        s_helper_stack = nullptr;
+        s_helper_ready = false;
+    }
+    if (s_audio_stack) {
+        OSJoinThread(&s_audio_thread, nullptr);
+        free(s_audio_stack);
+        s_audio_stack = nullptr;
+    }
+    if (s_aring) { free(s_aring); s_aring = nullptr; }
+    s_awrite = 0;
+    s_aread = 0;
+
+    /* Safe now: nothing is running that could still be reading them. */
     free_all_slots();
     free_scratch();
 }
